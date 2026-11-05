@@ -1,6 +1,0 @@
-import{e as l,s as u}from"./index-DfYylsuh.js";/**
- * @license lucide-react v0.462.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */const f=l("UserPlus",[["path",{d:"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2",key:"1yyitq"}],["circle",{cx:"9",cy:"7",r:"4",key:"nufk8"}],["line",{x1:"19",x2:"19",y1:"8",y2:"14",key:"1bvyxn"}],["line",{x1:"22",x2:"16",y1:"11",y2:"11",key:"1shjgl"}]]);async function y(o){const n=Array.from(new Set(o)).filter(Boolean),r=new Map;if(n.length===0)return r;const s=await Promise.all(n.map(async e=>{const{data:i,error:t}=await u.rpc("get_public_profile",{profile_id:e});if(t)return null;const a=i==null?void 0:i[0];return a?{id:a.id,username:a.username,avatar_url:a.avatar_url}:null}));for(const e of s)e!=null&&e.id&&r.set(e.id,e);return r}async function d(o){const n=o.trim();if(!n)return null;const{data:r,error:s}=await u.rpc("find_public_profile_by_username",{p_username:n});if(s)throw s;if(!r||r.length===0)return null;const e=n.toLowerCase(),t=r.find(a=>(a.username||"").toLowerCase()===e)??r[0];return{id:t.id,username:t.username,avatar_url:t.avatar_url}}export{f as U,d as f,y as g};

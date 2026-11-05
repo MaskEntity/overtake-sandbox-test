@@ -1,0 +1,11 @@
+import{e as Y}from"./index-DXibBhGx.js";import{j as m}from"./ui-Ce4gtCnO.js";/**
+ * @license lucide-react v0.462.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const H=Y("Crown",[["path",{d:"M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z",key:"1vdc57"}],["path",{d:"M5 21h14",key:"11awu3"}]]);/**
+ * @license lucide-react v0.462.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const I=Y("Timer",[["line",{x1:"10",x2:"14",y1:"2",y2:"2",key:"14vaq8"}],["line",{x1:"12",x2:"15",y1:"14",y2:"11",key:"17fdiu"}],["circle",{cx:"12",cy:"14",r:"8",key:"1e1u0o"}]]);function R(n,x,M){const e=[n[0]],h=a=>{const t=e[e.length-1],i=Math.hypot(a.x-t.x,a.y-t.y),c=Math.max(1,Math.round(i/50));for(let s=1;s<=c;s++)e.push({x:t.x+(a.x-t.x)*s/c,y:t.y+(a.y-t.y)*s/c})},o=new Set(x);for(let a=1;a<n.length;a++){const t=n[a];if(!o.has(a)||a===n.length-1){h(t);continue}const i=n[a-1],c=n[a+1],s=t.x-i.x,C=t.y-i.y,L=c.x-t.x,N=c.y-t.y,p=Math.hypot(s,C),g=Math.hypot(L,N),y=s/p,l=C/p,f=L/g,v=N/g,u=Math.acos(Math.max(-1,Math.min(1,y*f+l*v))),r=Math.min(M,.45*Math.min(p,g)/Math.tan(u/2)),d=r*Math.tan(u/2),b=t.x-y*d,k=t.y-l*d,q=t.x+f*d,z=t.y+v*d;h({x:b,y:k});const j=Math.sign(y*v-l*f)||1,S=b-l*r*j,T=k+y*r*j,B=Math.atan2(k-T,b-S),O=Math.max(2,Math.ceil(u*r/22));for(let w=1;w<=O;w++){const X=B+j*u*(w/O);e.push({x:S+Math.cos(X)*r,y:T+Math.sin(X)*r})}e[e.length-1]={x:q,y:z}}return e}function $({label:n,value:x,onChange:M,options:e,disabled:h}){return m.jsxs("div",{role:"radiogroup","aria-label":n,children:[m.jsx("p",{className:"mb-1.5 text-xs text-muted-foreground",children:n}),m.jsx("div",{className:"flex gap-1 rounded-lg bg-black/25 p-1",children:e.map(o=>m.jsx("button",{type:"button",role:"radio","aria-checked":x===o.value,disabled:h,onClick:()=>M(o.value),className:`flex-1 rounded-md px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 ${x===o.value?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-white/10"}`,children:o.label},o.value))})]})}export{H as C,$ as O,I as T,R as r};
