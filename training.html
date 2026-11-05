@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OverTake — AI Training</title>
+<style>
+  :root {
+    --bg: #0f1117; --panel: #171a23; --border: #252a37;
+    --text: #e8eaf0; --dim: #8b93a7;
+    --best: #1A73FF; --pop: #8b5cf6; --bound: #F05454; --ref: #f59e0b; --champ: #22c55e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; background: var(--bg); color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 0 0 2px; display: flex; align-items: center; gap: 10px; }
+  .sub { color: var(--dim); font-size: 14px; margin-bottom: 22px; line-height: 1.5; }
+  .runsub { color: var(--dim); font-size: 12px; margin-bottom: 14px; }
+  .status { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+  .live { background: rgba(34,197,94,.15); color: #22c55e; }
+  .done { background: rgba(139,147,167,.15); color: var(--dim); }
+  .run { margin-bottom: 30px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .card .label { color: var(--dim); font-size: 11px; margin-bottom: 5px; }
+  .card .value { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .card .note { color: var(--dim); font-size: 10px; margin-top: 4px; line-height: 1.35; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; margin-bottom: 10px; }
+  .legend span { display: flex; align-items: center; gap: 6px; color: var(--dim); }
+  .swatch { width: 14px; height: 3px; border-radius: 2px; flex: none; }
+  canvas { width: 100%; display: block; }
+  .empty { color: var(--dim); text-align: center; padding: 40px 0; font-size: 14px; }
+  code { background: #0b0d12; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>AI Training</h1>
+  <div class="sub">
+    Neuroevolution of the racing policy. Lower is faster; ratio 1.0 is the analytical bound.
+    <b style="color:var(--text)">Read the green line.</b> It re-races the champion on the same
+    48 fixed tracks every generation, so it is deterministic and can genuinely flatten. The blue
+    line races that generation's ranking tracks and moves with the field, not with the champion.
+  </div>
+
+  <div id="runs"></div>
+</div>
+
+<script>
+// Times are shown as a RATIO to each track's own optimal lap, not raw seconds,
+// so a harder track draw cannot masquerade as a slower driver.
+const RUNS = [
+  { file: '/trainingHistory.json',     title: 'Refine — 12 hidden units', note: 'continues the shipped champion with a corrected mutation size' },
+  { file: '/trainingHistory-h24.json', title: 'Wide net — 24 hidden units', note: 'trained from random weights; tests whether the small net was the ceiling' },
+];
+
+const dpr = Math.min(2, window.devicePixelRatio || 1);
+
+function prep(canvas, h) {
+  const w = canvas.clientWidth || 1000;
+  // Pin the CSS size explicitly. Scaling the backing store for DPR changes the
+  // height ATTRIBUTE, and `height: auto` would then derive the displayed height
+  // from that scaled value — doubling the chart on a retina screen.
+  canvas.style.height = h + 'px';
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+
+function line(ctx, pts, color, width) {
+  if (pts.length < 2) return;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+  ctx.stroke();
+}
+
+function drawRatio(canvas, data, refNote) {
+  const { ctx, w, h } = prep(canvas, 280);
+  const hist = data.history.filter(d => d.bestRatio != null);
+  if (!hist.length) return;
+
+  const padL = 58, padR = 16, padT = 14, padB = 30;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+
+  // Scale to the racing series. Generation 1 of a from-scratch run is random
+  // flailing with a ratio near 3; letting that set the axis squashes everything
+  // interesting into a few pixels. Reduce rather than spread — a long run has
+  // thousands of points and Math.min(...arr) would pass every one as an arg.
+  let lo = 1, hi = 1;
+  const warm = Math.floor(hist.length * 0.15);
+  hist.forEach((d, i) => {
+    if (d.bestRatio < lo) lo = d.bestRatio;
+    if (d.championRatio != null && d.championRatio < lo) lo = d.championRatio;
+    if (i >= warm && d.bestRatio > hi) hi = d.bestRatio;
+  });
+  if (!isFinite(hi) || hi <= lo) hi = lo + 0.01;
+  const pad = (hi - lo) * 0.12 || 0.005;
+  lo -= pad; hi += pad;
+
+  const X = i => padL + (hist.length === 1 ? plotW / 2 : (i / (hist.length - 1)) * plotW);
+  const Y = v => padT + plotH - ((v - lo) / (hi - lo)) * plotH;
+
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 5; i++) {
+    const v = lo + (hi - lo) * (i / 5);
+    const y = Y(v);
+    ctx.strokeStyle = '#252a37';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    ctx.fillStyle = '#8b93a7';
+    ctx.fillText(v.toFixed(3), padL - 8, y + 4);
+  }
+
+  ctx.setLineDash([5, 4]);
+  line(ctx, [{x:padL,y:Y(1)},{x:w-padR,y:Y(1)}], '#F05454', 1.5);
+  const refOnScale = data.baseline.meanRatio <= hi;
+  if (refOnScale) {
+    line(ctx, [{x:padL,y:Y(data.baseline.meanRatio)},{x:w-padR,y:Y(data.baseline.meanRatio)}], '#f59e0b', 1.5);
+  }
+  ctx.setLineDash([]);
+  refNote.textContent = refOnScale ? '' : ` — ${data.baseline.meanRatio.toFixed(3)}, above this chart`;
+
+  // Clip so an off-scale population average does not paint over the axes.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(padL, padT, plotW, plotH);
+  ctx.clip();
+  line(ctx, hist.map((d,i)=>({x:X(i),y:Y(d.popMeanRatio ?? d.bestRatio)})), '#8b5cf6', 1.5);
+  line(ctx, hist.map((d,i)=>({x:X(i),y:Y(d.bestRatio)})), '#1A73FF', 1.5);
+  const champ = [];
+  hist.forEach((d, i) => { if (d.championRatio != null) champ.push({ x: X(i), y: Y(d.championRatio) }); });
+  line(ctx, champ, '#22c55e', 2.5);
+  ctx.restore();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#8b93a7';
+  const step = Math.max(1, Math.floor(hist.length / 8));
+  for (let i = 0; i < hist.length; i += step) {
+    ctx.fillText(`gen ${hist[i].gen}`, X(i), h - 10);
+  }
+}
+
+function card(label, value, note) {
+  return `<div class="card"><div class="label">${label}</div>
+    <div class="value">${value}</div>${note ? `<div class="note">${note}</div>` : ''}</div>`;
+}
+
+function buildSection(run) {
+  const el = document.createElement('div');
+  el.className = 'run';
+  el.innerHTML = `
+    <h2>${run.title} <span class="status done">idle</span></h2>
+    <div class="runsub">${run.note}</div>
+    <div class="cards"></div>
+    <div class="panel">
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--champ)"></i> <b style="color:var(--text)">Champion — 48 fixed tracks</b></span>
+        <span><i class="swatch" style="background:var(--best)"></i> Best of generation (ranking tracks)</span>
+        <span><i class="swatch" style="background:var(--pop)"></i> Population average</span>
+        <span><i class="swatch" style="background:var(--ref)"></i> Hand-written driver<i class="refnote" style="font-style:normal"></i></span>
+        <span><i class="swatch" style="background:var(--bound)"></i> Analytical bound</span>
+      </div>
+      <canvas></canvas>
+      <div class="empty">Waiting for the first generation…</div>
+    </div>`;
+  return {
+    el,
+    status: el.querySelector('.status'),
+    cards: el.querySelector('.cards'),
+    canvas: el.querySelector('canvas'),
+    empty: el.querySelector('.empty'),
+    refNote: el.querySelector('.refnote'),
+  };
+}
+
+function render(ui, data) {
+  const hist = data.history;
+  const last = hist[hist.length - 1];
+
+  ui.status.textContent = data.running ? 'training' : 'stopped';
+  ui.status.className = 'status ' + (data.running ? 'live' : 'done');
+  ui.empty.style.display = hist.length ? 'none' : '';
+  ui.canvas.style.display = hist.length ? '' : 'none';
+
+  const champ = last && last.championRatio != null ? last.championRatio : null;
+  const gap = champ != null ? (champ - 1) * 100 : null;
+  const flat = last && last.sinceImprovement != null ? last.sinceImprovement : null;
+  const mins = last ? Math.floor(last.elapsedS / 60) : 0;
+
+  ui.cards.innerHTML = [
+    card('Generation', last ? `${last.gen}` : '—',
+         `${mins}m elapsed &middot; ${data.population} agents`),
+    card('Champion', champ != null ? champ.toFixed(5) : '—',
+         gap != null ? `${gap >= 0 ? '+' : ''}${gap.toFixed(2)}% vs bound` : 'no full finisher yet'),
+    card('Flat for', flat != null ? `${flat} gen` : '—',
+         data.autoStop ? `auto-stops at ${data.patience}` : 'keeps training regardless'),
+    card('Network', `${data.hidden ?? '?'} units`, `${data.genomeSize ?? '?'} weights`),
+    card('Tracks', `${data.tracksPerAgent ?? '?'}`, `ranking &middot; ${data.selectionTracks ?? '?'} for the champion`),
+  ].join('');
+
+  if (hist.length) drawRatio(ui.canvas, data, ui.refNote);
+}
+
+const container = document.getElementById('runs');
+const uis = RUNS.map(run => {
+  const ui = buildSection(run);
+  container.appendChild(ui.el);
+  return ui;
+});
+
+async function tick() {
+  await Promise.all(RUNS.map(async (run, i) => {
+    try {
+      const res = await fetch(run.file + '?t=' + Date.now());
+      if (res.ok) {
+        uis[i].el.style.display = '';
+        render(uis[i], await res.json());
+      } else {
+        uis[i].el.style.display = 'none'; // run not started
+      }
+    } catch {}
+  }));
+}
+async function poll() { await tick(); setTimeout(poll, 1500); }
+poll();
+window.addEventListener('resize', tick);
+</script>
+</body>
+</html>

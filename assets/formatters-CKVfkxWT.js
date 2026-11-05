@@ -1,0 +1,1 @@
+import{cy as e,cA as i}from"./index-gvggnNUw.js";function o(t){return t?`${t.slice(0,5)}…${t.slice(-4)}`:""}function c({wei:t,precision:r=3}){return parseFloat(e(t)).toFixed(r).replace(/0+$/,"").replace(/\.$/,"")}function a({amount:t,decimals:r}){return i(BigInt(t),r)}export{a as i,o as n,c as t};
